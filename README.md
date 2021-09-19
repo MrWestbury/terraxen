@@ -1,2 +1,2 @@
-# terrakube-moduleregistry
-Terraform module registry
+# Terrakube Module Registry
+Terraform module registry application
