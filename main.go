@@ -1,33 +1,51 @@
 package main
 
 import (
+	"github.com/MrWestbury/terrakube-moduleregistry/services"
 	"net/http"
+	"os"
 
 	"github.com/MrWestbury/terrakube-moduleregistry/api"
-	"github.com/MrWestbury/terrakube-moduleregistry/models"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 )
 
 var modulesRootPath string = "/modules/v1"
 
-var data DataController
-
 func main() {
 	log.Info("Module registry starting")
 
+	svcOpts := services.Options{
+		Hostname: os.Getenv("MONGO_HOSTNAME"),
+		Username: os.Getenv("MONGO_USERNAME"),
+		Password: os.Getenv("MONGO_PASSWORD"),
+		Database: os.Getenv("MONGO_DB"),
+		ExtraOpts: map[string]string{
+			"retryWrites": "true",
+			"w":           "majority",
+		},
+	}
+
+	nsSvc := services.NewNamespaceService(svcOpts)
+	modSvc := services.NewModuleService(svcOpts)
+	sysSvc := services.NewSystemService(svcOpts)
+	verSvc := services.NewVersionService(svcOpts)
+
 	router := gin.Default()
+	rootGroup := router.Group("/")
+
 	router.GET("/.well-known/terraform.json", getManifest)
 
-	moduleGroup := router.Group(modulesRootPath)
-	moduleGroup.GET(":namespace/:name/:provider/versions", getModuleVersions)
+	moduleRegistry := api.NewModuleRegistry(*nsSvc, *modSvc, *sysSvc, *verSvc)
+	moduleRegistry.Router(rootGroup)
 
-	api := api.Api{}
-	api.Router(router.Group("/"))
+	apiSvc := api.Api{}
+	apiSvc.Router(rootGroup)
 
-	data = DataController{}
-
-	router.Run("localhost:8080")
+	err := router.Run("localhost:8080")
+	if err != nil {
+		log.Fatalf("error running server: %v", err)
+	}
 }
 
 func getManifest(c *gin.Context) {
@@ -35,28 +53,4 @@ func getManifest(c *gin.Context) {
 		"modules.v1": modulesRootPath,
 	}
 	c.IndentedJSON(http.StatusOK, data)
-}
-
-func getModuleVersions(c *gin.Context) {
-	namespace := c.Param("namespace")
-	name := c.Param("name")
-	provider := c.Param("provider")
-
-	versions := data.GetModuleVersions(namespace, name, provider)
-
-	terraformModule := models.TerraformModule{}
-
-	for _, version := range versions {
-		newVersion := models.ModuleVersion{
-			Version: version,
-		}
-
-		terraformModule.Versions = append(terraformModule.Versions, newVersion)
-	}
-
-	parent := models.ModuleVersionsParent{
-		Modules: []models.TerraformModule{terraformModule},
-	}
-
-	c.IndentedJSON(200, parent)
 }
