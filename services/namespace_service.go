@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/MrWestbury/terrakube-moduleregistry/backend"
-	"github.com/MrWestbury/terrakube-moduleregistry/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -19,6 +18,11 @@ var (
 	ErrNamespaceNotFound = errors.New("namespace not found")
 	ErrNamespaceExists   = errors.New("namespace already exists")
 )
+
+type Namespace struct {
+	Name  string `json:"name"`
+	Owner string `json:"owner"`
+}
 
 type NamespaceService struct {
 	backend.MongoBackend
@@ -35,7 +39,7 @@ func NewNamespaceService(options Options) *NamespaceService {
 	return svc
 }
 
-func (nsSvc NamespaceService) CreateNamespace(name string, owner string) (*models.Namespace, error) {
+func (nsSvc NamespaceService) CreateNamespace(name string, owner string) (*Namespace, error) {
 	if nsSvc.Exists(name) {
 		return nil, ErrNamespaceExists
 	}
@@ -44,7 +48,7 @@ func (nsSvc NamespaceService) CreateNamespace(name string, owner string) (*model
 	ctx := context.Background()
 	defer handleDisconnect(client, ctx)
 
-	newNs := &models.Namespace{
+	newNs := &Namespace{
 		Name:  name,
 		Owner: owner,
 	}
@@ -59,7 +63,7 @@ func (nsSvc NamespaceService) CreateNamespace(name string, owner string) (*model
 	return newNs, nil
 }
 
-func (nsSvc NamespaceService) ListNamespaces() *[]models.Namespace {
+func (nsSvc NamespaceService) ListNamespaces() *[]Namespace {
 	client := nsSvc.Connect()
 	ctx := context.Background()
 	defer handleDisconnect(client, ctx)
@@ -68,7 +72,7 @@ func (nsSvc NamespaceService) ListNamespaces() *[]models.Namespace {
 
 	collection := client.Database(nsSvc.Database).Collection(namespaceCollectionName)
 
-	var namespaces []models.Namespace
+	var namespaces []Namespace
 	rs, err := collection.Find(ctx, filter)
 	if err != nil {
 		log.Fatalf("failed getting namespaces: %v", err)
@@ -82,7 +86,7 @@ func (nsSvc NamespaceService) ListNamespaces() *[]models.Namespace {
 	return &namespaces
 }
 
-func (nsSvc NamespaceService) GetNamespaceByName(name string) (*models.Namespace, error) {
+func (nsSvc NamespaceService) GetNamespaceByName(name string) (*Namespace, error) {
 	exists := nsSvc.Exists(name)
 	if !exists {
 		return nil, errors.New("namespace not found")
@@ -98,7 +102,7 @@ func (nsSvc NamespaceService) GetNamespaceByName(name string) (*models.Namespace
 
 	collection := client.Database(nsSvc.Database).Collection(namespaceCollectionName)
 
-	var item models.Namespace
+	var item Namespace
 	err := collection.FindOne(ctx, filter).Decode(&item)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {

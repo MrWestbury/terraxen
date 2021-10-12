@@ -1,4 +1,4 @@
-package api
+package main
 
 import (
 	"fmt"
@@ -31,12 +31,13 @@ type ModuleRegistry struct {
 	storageSvc services.AzureStorageService
 }
 
-func NewModuleRegistry(nssvc services.NamespaceService, modsvc services.ModuleService, syssvc services.SystemService, versvc services.VersionService) *ModuleRegistry {
+func NewModuleRegistry(nssvc services.NamespaceService, modsvc services.ModuleService, syssvc services.SystemService, versvc services.VersionService, storageSvc services.AzureStorageService) *ModuleRegistry {
 	reg := &ModuleRegistry{
-		nsSvc:  nssvc,
-		modSvc: modsvc,
-		sysSvc: syssvc,
-		verSvc: versvc,
+		nsSvc:      nssvc,
+		modSvc:     modsvc,
+		sysSvc:     syssvc,
+		verSvc:     versvc,
+		storageSvc: storageSvc,
 	}
 
 	return reg
@@ -102,7 +103,7 @@ func (reg ModuleRegistry) getModuleVersions(c *gin.Context) {
 	var versionsList []ResponseVersion
 	for _, ver := range *versions {
 		newVer := ResponseVersion{
-			Version: ver.Version,
+			Version: ver.Name,
 		}
 		versionsList = append(versionsList, newVer)
 	}
@@ -168,7 +169,7 @@ func (reg ModuleRegistry) getVersionsDownload(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusNotFound, body)
 		}
 	}
-	dlPath := fmt.Sprintf("%s/%s/%s/%s/%s/downloadFile", ModuleRegistryRootPath, version.Namespace, version.Module, version.System, version.Version)
+	dlPath := fmt.Sprintf("%s/%s/%s/%s/%s/downloadFile", ModuleRegistryRootPath, version.Namespace, version.Module, version.System, version.Name)
 
 	c.Header("X-Terraform-Get", dlPath)
 	c.Status(http.StatusOK)

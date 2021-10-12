@@ -1,4 +1,4 @@
-package api
+package main
 
 type NamespaceResponse struct {
 	Name  string `json:"name"`

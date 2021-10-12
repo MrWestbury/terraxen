@@ -1,4 +1,4 @@
-package api
+package main
 
 import (
 	"github.com/MrWestbury/terrakube-moduleregistry/services"
@@ -6,10 +6,18 @@ import (
 	"os"
 )
 
-type ApiV1 struct{}
+type V1 struct{}
 
-func (v1 ApiV1) Router(g *gin.RouterGroup) {
+func (v1 V1) Router(g *gin.RouterGroup) {
 	group := g.Group("v1")
+
+	azureOpts := services.AzureStorageOptions{
+		AccountName:   os.Getenv("AZURE_STORAGE_ACCOUNT"),
+		AccountKey:    os.Getenv("AZURE_STORAGE_KEY"),
+		ContainerName: os.Getenv("AZURE_STORAGE_CONTAINER_NAME"),
+	}
+
+	storageSvc := services.NewAzureStorageService(azureOpts)
 
 	svcOpts := services.Options{
 		Hostname: os.Getenv("MONGO_HOSTNAME"),
@@ -27,14 +35,14 @@ func (v1 ApiV1) Router(g *gin.RouterGroup) {
 	sysSvc := services.NewSystemService(svcOpts)
 	verSvc := services.NewVersionService(svcOpts)
 
-	nsApi := NewNamespaceApi(*nsSvc)
+	nsApi := NewNamespaceApi(*nsSvc, *modSvc)
 	modApi := NewModuleApi(*nsSvc, *modSvc)
 	sysApi := NewSystemApi(*nsSvc, *modSvc, *sysSvc)
-	verApi := NewVersionApi(*nsSvc, *modSvc, *sysSvc, *verSvc)
+	verApi := NewVersionApi(*nsSvc, *modSvc, *sysSvc, *verSvc, *storageSvc)
 
-	ns_group := nsApi.Router(group)
-	mod_group := modApi.Router(ns_group)
-	sys_group := sysApi.Router(mod_group)
-	verApi.Router(sys_group)
+	nsGroup := nsApi.Router(group)
+	modGroup := modApi.Router(nsGroup)
+	sysGroup := sysApi.Router(modGroup)
+	verApi.Router(sysGroup)
 
 }
