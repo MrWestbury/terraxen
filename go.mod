@@ -1,8 +1,12 @@
-module github.com/MrWestbury/terrakube-moduleregistry
+module github.com/MrWestbury/terraxen
 
 go 1.17
 
-require github.com/gin-gonic/gin v1.7.4
+require (
+	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
+	github.com/gin-gonic/gin v1.7.4
+	github.com/google/uuid v1.2.0
+)
 
 require (
 	github.com/Azure/azure-storage-blob-go v0.14.0
@@ -28,7 +32,6 @@ require (
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/google/uuid v1.2.0 // indirect
 	github.com/klauspost/compress v1.9.5 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

@@ -4,7 +4,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 
-	"github.com/MrWestbury/terrakube-moduleregistry/services"
+	"github.com/MrWestbury/terraxen/services"
 	"github.com/gin-gonic/gin"
 )
 

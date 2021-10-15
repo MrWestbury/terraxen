@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/MrWestbury/terrakube-moduleregistry/backend"
+	"github.com/MrWestbury/terraxen/backend"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"

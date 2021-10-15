@@ -11,7 +11,7 @@ func NewApi() *Api {
 }
 
 func (api Api) Router(g *gin.RouterGroup) {
-	apiRouter := g.Group("api")
+	apiRouter := g.Group("/api")
 
 	v1api := V1{}
 	v1api.Router(apiRouter)

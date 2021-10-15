@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/MrWestbury/terrakube-moduleregistry/services"
+	"github.com/MrWestbury/terraxen/services"
 	"github.com/gin-gonic/gin"
 	"log"
 	"os"

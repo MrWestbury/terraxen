@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/MrWestbury/terrakube-moduleregistry/services"
+	"github.com/MrWestbury/terraxen/services"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )

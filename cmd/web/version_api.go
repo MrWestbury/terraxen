@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/MrWestbury/terrakube-moduleregistry/services"
+	"github.com/MrWestbury/terraxen/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

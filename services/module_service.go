@@ -3,9 +3,11 @@ package services
 import (
 	"context"
 	"errors"
+	"github.com/google/uuid"
 	"log"
+	"time"
 
-	"github.com/MrWestbury/terrakube-moduleregistry/backend"
+	"github.com/MrWestbury/terraxen/backend"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -15,13 +17,9 @@ const (
 )
 
 var (
-	ErrModuleNotFound = errors.New("module not found")
+	ErrModuleNotFound      = errors.New("module not found")
+	ErrModuleAlreadyExists = errors.New("module already exists")
 )
-
-type TerraformModule struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-}
 
 type ModuleService struct {
 	backend.MongoBackend
@@ -38,9 +36,16 @@ func NewModuleService(options Options) *ModuleService {
 	return svc
 }
 
-func (modSvc ModuleService) CreateModule(ns Namespace, module TerraformModule) (*TerraformModule, error) {
+func (modSvc ModuleService) CreateModule(module NewTerraformModule) (*TerraformModule, error) {
+	newModule := TerraformModule{
+		Id:        uuid.NewString(),
+		Name:      module.Name,
+		Namespace: module.Namespace,
+		Created:   time.Now(),
+		Updated:   time.Now(),
+	}
 
-	if modSvc.Exists(ns, module.Name) {
+	if modSvc.Exists(newModule) {
 		return nil, errors.New("module already exists")
 	}
 
@@ -49,16 +54,16 @@ func (modSvc ModuleService) CreateModule(ns Namespace, module TerraformModule) (
 	defer modSvc.HandleDisconnect(client, ctx)
 
 	collection := client.Database(modSvc.Database).Collection(moduleCollectionName)
-	_, err := collection.InsertOne(ctx, module)
+	_, err := collection.InsertOne(ctx, newModule)
 	if err != nil {
 		log.Fatalf("failed to insert module: %v", err)
 		return nil, err
 	}
 
-	return &module, nil
+	return &newModule, nil
 }
 
-func (modSvc ModuleService) ListModules(ns Namespace) *[]TerraformModule {
+func (modSvc ModuleService) ListModules(ns TerraformNamespace) *[]TerraformModule {
 	client := modSvc.Connect()
 	ctx := context.Background()
 	defer modSvc.HandleDisconnect(client, ctx)
@@ -83,7 +88,7 @@ func (modSvc ModuleService) ListModules(ns Namespace) *[]TerraformModule {
 	return &modules
 }
 
-func (modSvc ModuleService) GetModuleByName(ns Namespace, name string) (*TerraformModule, error) {
+func (modSvc ModuleService) GetModuleByName(ns TerraformNamespace, name string) (*TerraformModule, error) {
 	client := modSvc.Connect()
 	ctx := context.Background()
 	defer modSvc.HandleDisconnect(client, ctx)
@@ -107,14 +112,13 @@ func (modSvc ModuleService) GetModuleByName(ns Namespace, name string) (*Terrafo
 	return &item, nil
 }
 
-func (modSvc ModuleService) DeleteModule(namespace Namespace, name string) {
+func (modSvc ModuleService) DeleteModule(module TerraformModule) {
 	client := modSvc.Connect()
 	ctx := context.Background()
 	defer modSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
-		"namespace": namespace.Name,
-		"name":      name,
+		"id": module.Id,
 	}
 
 	collection := client.Database(modSvc.Database).Collection(moduleCollectionName)
@@ -124,7 +128,7 @@ func (modSvc ModuleService) DeleteModule(namespace Namespace, name string) {
 	}
 }
 
-func (modSvc ModuleService) HasChildren(namespace Namespace) bool {
+func (modSvc ModuleService) HasChildren(namespace TerraformNamespace) bool {
 	client := modSvc.Connect()
 	ctx := context.Background()
 	defer modSvc.HandleDisconnect(client, ctx)
@@ -141,14 +145,14 @@ func (modSvc ModuleService) HasChildren(namespace Namespace) bool {
 	return count > 0
 }
 
-func (modSvc ModuleService) Exists(namespace Namespace, module string) bool {
+func (modSvc ModuleService) Exists(module TerraformModule) bool {
 	client := modSvc.Connect()
 	ctx := context.Background()
 	defer modSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
-		"name":      module,
-		"namespace": namespace.Name,
+		"name":      module.Name,
+		"namespace": module.Namespace,
 	}
 
 	collection := client.Database(modSvc.Database).Collection(moduleCollectionName)

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/MrWestbury/terrakube-moduleregistry/backend"
+	"github.com/MrWestbury/terraxen/backend"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -18,11 +18,6 @@ var (
 	ErrNamespaceNotFound = errors.New("namespace not found")
 	ErrNamespaceExists   = errors.New("namespace already exists")
 )
-
-type Namespace struct {
-	Name  string `json:"name"`
-	Owner string `json:"owner"`
-}
 
 type NamespaceService struct {
 	backend.MongoBackend

@@ -4,19 +4,21 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 
-	"github.com/MrWestbury/terrakube-moduleregistry/services"
+	"github.com/MrWestbury/terraxen/services"
 	"github.com/gin-gonic/gin"
 )
 
 type ModuleApi struct {
 	nsSvc  services.NamespaceService
 	modSvc services.ModuleService
+	sysSvc services.SystemService
 }
 
-func NewModuleApi(namespaceSvc services.NamespaceService, moduleSvc services.ModuleService) ModuleApi {
+func NewModuleApi(namespaceSvc services.NamespaceService, moduleSvc services.ModuleService, systemSvc services.SystemService) ModuleApi {
 	newApi := &ModuleApi{
 		nsSvc:  namespaceSvc,
 		modSvc: moduleSvc,
+		sysSvc: systemSvc,
 	}
 	return *newApi
 }
@@ -33,8 +35,8 @@ func (modApi ModuleApi) Router(g *gin.RouterGroup) *gin.RouterGroup {
 }
 
 func (modApi ModuleApi) Create(c *gin.Context) {
-	var newMod services.TerraformModule
-	err := c.Bind(&newMod)
+	var moduleRequest RequestNewModule
+	err := c.Bind(&moduleRequest)
 	if err != nil {
 		body := ErrorResponse{
 			Message: "Request body unprocessable",
@@ -42,31 +44,31 @@ func (modApi ModuleApi) Create(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, body)
 		return
 	}
-	nsExists := modApi.nsSvc.Exists(newMod.Namespace)
-	if !nsExists {
-		body := ErrorResponse{
-			Message: "Namespace doesn't exist",
-		}
-		c.AbortWithStatusJSON(http.StatusNotAcceptable, body)
-		return
-	}
-	ns, err := modApi.nsSvc.GetNamespaceByName(newMod.Namespace)
-
-	modExists := modApi.modSvc.Exists(*ns, newMod.Name)
-	if modExists {
-		body := ErrorResponse{
-			Message: "Module already exists",
-		}
-		c.AbortWithStatusJSON(http.StatusConflict, body)
+	ns := modApi.getNamespaceFromRequest(c)
+	if ns == nil {
 		return
 	}
 
-	createdMod, err := modApi.modSvc.CreateModule(*ns, newMod)
+	newModule := services.NewTerraformModule{
+		Name:      moduleRequest.Name,
+		Namespace: ns.Name,
+	}
+
+	createdMod, err := modApi.modSvc.CreateModule(newModule)
 	if err != nil {
-		body := ErrorResponse{
+		if err == services.ErrModuleAlreadyExists {
+			response := ErrorResponse{
+				Code:    http.StatusConflict,
+				Message: err.Error(),
+			}
+			c.AbortWithStatusJSON(response.Code, response)
+			return
+		}
+		response := ErrorResponse{
+			Code:    http.StatusInternalServerError,
 			Message: "Failed to create module entry",
 		}
-		c.AbortWithStatusJSON(http.StatusInternalServerError, body)
+		c.AbortWithStatusJSON(response.Code, response)
 		return
 	}
 
@@ -108,11 +110,19 @@ func (modApi ModuleApi) GetModuleByName(c *gin.Context) {
 }
 
 func (modApi ModuleApi) DeleteModule(c *gin.Context) {
-	ns := modApi.getNamespaceFromRequest(c)
+	module := modApi.getModuleFromRequest(c)
 
-	moduleName := c.Param("module")
-	modApi.modSvc.DeleteModule(*ns, moduleName)
-	c.AbortWithStatus(http.StatusNotImplemented)
+	systemList := modApi.sysSvc.ListSystemsByModule(*module)
+	if len(*systemList) > 0 {
+		response := ErrorResponse{
+			Message: "Module has dependant systems",
+		}
+		c.AbortWithStatusJSON(http.StatusConflict, response)
+		return
+	}
+
+	modApi.modSvc.DeleteModule(module)
+	c.AbortWithStatus(http.StatusOK)
 }
 
 func (modApi ModuleApi) getNamespaceFromRequest(c *gin.Context) *services.Namespace {
@@ -128,7 +138,7 @@ func (modApi ModuleApi) getNamespaceFromRequest(c *gin.Context) *services.Namesp
 		}
 
 		response := ErrorResponse{
-			Message: "Unknown error listing modules",
+			Message: "Unknown error getting namespace",
 		}
 
 		log.Error("error getting namespace", err)
@@ -137,4 +147,32 @@ func (modApi ModuleApi) getNamespaceFromRequest(c *gin.Context) *services.Namesp
 	}
 
 	return ns
+}
+
+func (modApi ModuleApi) getModuleFromRequest(c *gin.Context) *services.TerraformModule {
+	ns := modApi.getNamespaceFromRequest(c)
+	if ns == nil {
+		return nil
+	}
+
+	moduleName := c.Param("module")
+	module, err := modApi.modSvc.GetModuleByName(*ns, moduleName)
+	if err != nil {
+		if err == services.ErrModuleNotFound {
+			response := ErrorResponse{
+				Message: "Module not found",
+			}
+			c.AbortWithStatusJSON(http.StatusNotFound, response)
+			return nil
+		}
+		response := ErrorResponse{
+			Message: "Unknown error getting module",
+		}
+
+		log.Error("error getting module", err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, response)
+		return nil
+	}
+
+	return module
 }
