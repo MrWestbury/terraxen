@@ -8,4 +8,5 @@ type ErrorResponse struct {
 type ListMetaData struct {
 	Offset int `json:"offset"`
 	Limit  int `json:"limit"`
+	Count  int `json:"count"`
 }

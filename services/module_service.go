@@ -47,7 +47,7 @@ func (modSvc ModuleService) CreateModule(module NewTerraformModule) (*TerraformM
 	}
 
 	if modSvc.Exists(newModule) {
-		return nil, errors.New("module already exists")
+		return nil, ErrModuleAlreadyExists
 	}
 
 	client := modSvc.Connect()
@@ -156,7 +156,7 @@ func (modSvc ModuleService) Exists(module TerraformModule) bool {
 	defer modSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
-		"_id": module.Id,
+		"id": module.Id,
 	}
 
 	collection := client.Database(modSvc.Database).Collection(moduleCollectionName)

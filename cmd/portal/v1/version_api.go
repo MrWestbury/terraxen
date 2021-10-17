@@ -2,15 +2,14 @@ package v1
 
 import (
 	"fmt"
+	"github.com/MrWestbury/terraxen/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-
-	"github.com/MrWestbury/terraxen/services"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type VersionApi struct {
@@ -139,7 +138,8 @@ func (versionApi VersionApi) CreateHandler(c *gin.Context) {
 		return
 	}
 
-	c.IndentedJSON(http.StatusOK, savedVersion)
+	respVersion := versionApi.TFVersionToRespVersion(*savedVersion, c.Request.URL.String())
+	c.IndentedJSON(http.StatusOK, respVersion)
 }
 
 // ListVersions handles requests to list available versions of a given system
@@ -163,18 +163,13 @@ func (versionApi VersionApi) ListVersions(c *gin.Context) {
 		Meta: ListMetaData{
 			Offset: 0,
 			Limit:  0,
+			Count:  len(*versionList),
 		},
-		Namespace: sys.Namespace,
-		Module:    sys.Module,
-		System:    sys.Namespace,
-		Versions:  make([]ResponseVersion, 0),
+		Versions: make([]ResponseVersion, 0),
 	}
 	for _, version := range *versionList {
-		response.Versions = append(response.Versions, ResponseVersion{
-			Id:       version.Id,
-			Name:     version.Name,
-			Download: fmt.Sprintf("%s/%s/download", c.Request.URL.String(), version.Name),
-		})
+		respVer := versionApi.TFVersionToRespVersion(version, c.Request.URL.String())
+		response.Versions = append(response.Versions, *respVer)
 	}
 
 	c.IndentedJSON(http.StatusOK, response)
@@ -202,5 +197,18 @@ func (versionApi VersionApi) DeleteHandler(c *gin.Context) {
 	}
 
 	versionApi.helper.VersionSvc.Delete(*ver)
+}
 
+func (versionApi VersionApi) TFVersionToRespVersion(version services.TerraformModuleVersion, basePath string) *ResponseVersion {
+	result := &ResponseVersion{
+		Id:        version.Id,
+		Name:      version.Name,
+		Namespace: version.Namespace,
+		Module:    version.Module,
+		System:    version.System,
+		Download:  fmt.Sprintf("%s%s/download", basePath, version.Name),
+		Downloads: versionApi.helper.VersionSvc.GetDownloadCount(version),
+		Created:   version.Created,
+	}
+	return result
 }

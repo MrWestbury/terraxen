@@ -381,7 +381,7 @@
 								{
 									"key": "file",
 									"type": "file",
-									"src": "./test.zip"
+									"src": "/C:/Users/westb/GolandProjects/terraxen/Postman/test.zip"
 								},
 								{
 									"key": "version",

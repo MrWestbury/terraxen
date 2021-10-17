@@ -1,5 +1,7 @@
 package services
 
+import "time"
+
 type NewTerraformModuleVersion struct {
 	Namespace   string `json:"namespace"`
 	Module      string `json:"module"`
@@ -9,10 +11,11 @@ type NewTerraformModuleVersion struct {
 }
 
 type TerraformModuleVersion struct {
-	Id          string `json:"_id"`
-	Namespace   string `json:"namespace"`
-	Module      string `json:"module"`
-	System      string `json:"system"`
-	Name        string `json:"name"`
-	DownloadKey string `json:"downloadkey"`
+	Id          string    `json:"_id"`
+	Namespace   string    `json:"namespace"`
+	Module      string    `json:"module"`
+	System      string    `json:"system"`
+	Name        string    `json:"name"`
+	DownloadKey string    `json:"downloadkey"`
+	Created     time.Time `json:"created"`
 }

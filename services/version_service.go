@@ -7,6 +7,7 @@ import (
 	"github.com/MrWestbury/terraxen/backend"
 	"go.mongodb.org/mongo-driver/bson"
 	"log"
+	"time"
 )
 
 const (
@@ -134,7 +135,8 @@ func (verSvc VersionService) CreateVersion(newVersion NewTerraformModuleVersion)
 		Module:      newVersion.Module,
 		System:      newVersion.System,
 		Name:        newVersion.Name,
-		DownloadKey: "",
+		Created:     time.Now(),
+		DownloadKey: newVersion.StoragePath,
 	}
 
 	c := verSvc.Connect()
@@ -189,4 +191,8 @@ func (verSvc VersionService) HasChildren(system TerraformSystem) bool {
 		log.Fatalf("error getting system count: %v", err)
 	}
 	return count > 0
+}
+
+func (verSvc VersionService) GetDownloadCount(version TerraformModuleVersion) int {
+	return 100
 }
