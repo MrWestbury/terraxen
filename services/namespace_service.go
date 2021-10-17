@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/MrWestbury/terraxen/backend"
 	"go.mongodb.org/mongo-driver/bson"
@@ -34,40 +35,44 @@ func NewNamespaceService(options Options) *NamespaceService {
 	return svc
 }
 
-func (nsSvc NamespaceService) CreateNamespace(name string, owner string) (*Namespace, error) {
-	if nsSvc.Exists(name) {
+func (nsSvc NamespaceService) CreateNamespace(newNs NewTerraformNamespace) (*TerraformNamespace, error) {
+	if nsSvc.Exists(newNs.Name) {
 		return nil, ErrNamespaceExists
 	}
 
 	client := nsSvc.Connect()
 	ctx := context.Background()
-	defer handleDisconnect(client, ctx)
+	defer nsSvc.HandleDisconnect(client, ctx)
 
-	newNs := &Namespace{
-		Name:  name,
-		Owner: owner,
+	newId := newNs.Name
+	ns := &TerraformNamespace{
+		Id:      newId,
+		Name:    newNs.Name,
+		Owner:   newNs.Owner,
+		Created: time.Now(),
+		Updated: time.Now(),
 	}
 
 	collection := client.Database(nsSvc.Database).Collection(namespaceCollectionName)
 
-	_, err := collection.InsertOne(ctx, newNs)
+	_, err := collection.InsertOne(ctx, ns)
 	if err != nil {
 		log.Fatalf("error inserting namespace: %v", err)
 	}
 
-	return newNs, nil
+	return ns, nil
 }
 
-func (nsSvc NamespaceService) ListNamespaces() *[]Namespace {
+func (nsSvc NamespaceService) ListNamespaces() *[]TerraformNamespace {
 	client := nsSvc.Connect()
 	ctx := context.Background()
-	defer handleDisconnect(client, ctx)
+	defer nsSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.D{}
 
 	collection := client.Database(nsSvc.Database).Collection(namespaceCollectionName)
 
-	var namespaces []Namespace
+	var namespaces []TerraformNamespace
 	rs, err := collection.Find(ctx, filter)
 	if err != nil {
 		log.Fatalf("failed getting namespaces: %v", err)
@@ -81,7 +86,7 @@ func (nsSvc NamespaceService) ListNamespaces() *[]Namespace {
 	return &namespaces
 }
 
-func (nsSvc NamespaceService) GetNamespaceByName(name string) (*Namespace, error) {
+func (nsSvc NamespaceService) GetNamespaceByName(name string) (*TerraformNamespace, error) {
 	exists := nsSvc.Exists(name)
 	if !exists {
 		return nil, errors.New("namespace not found")
@@ -89,7 +94,7 @@ func (nsSvc NamespaceService) GetNamespaceByName(name string) (*Namespace, error
 
 	client := nsSvc.Connect()
 	ctx := context.Background()
-	defer handleDisconnect(client, ctx)
+	defer nsSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
 		"name": name,
@@ -97,7 +102,7 @@ func (nsSvc NamespaceService) GetNamespaceByName(name string) (*Namespace, error
 
 	collection := client.Database(nsSvc.Database).Collection(namespaceCollectionName)
 
-	var item Namespace
+	var item TerraformNamespace
 	err := collection.FindOne(ctx, filter).Decode(&item)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -109,13 +114,13 @@ func (nsSvc NamespaceService) GetNamespaceByName(name string) (*Namespace, error
 	return &item, nil
 }
 
-func (nsSvc NamespaceService) DeleteNamespace(name string) {
+func (nsSvc NamespaceService) DeleteNamespace(namespace TerraformNamespace) {
 	client := nsSvc.Connect()
 	ctx := context.Background()
-	defer handleDisconnect(client, ctx)
+	defer nsSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
-		"name": name,
+		"id": namespace.Id,
 	}
 
 	collection := client.Database(nsSvc.Database).Collection(namespaceCollectionName)
@@ -128,7 +133,7 @@ func (nsSvc NamespaceService) DeleteNamespace(name string) {
 func (nsSvc NamespaceService) Exists(name string) bool {
 	client := nsSvc.Connect()
 	ctx := context.Background()
-	defer handleDisconnect(client, ctx)
+	defer nsSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
 		"name": name,
@@ -144,11 +149,4 @@ func (nsSvc NamespaceService) Exists(name string) bool {
 	}
 
 	return true
-}
-
-func handleDisconnect(client *mongo.Client, ctx context.Context) {
-	err := client.Disconnect(ctx)
-	if err != nil {
-		log.Fatalf("error disconnecting client: %v", err)
-	}
 }

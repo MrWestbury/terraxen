@@ -1,22 +1,20 @@
-package main
+package v1
 
 import (
+	"github.com/MrWestbury/terraxen/services"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 
-	"github.com/MrWestbury/terraxen/services"
 	"github.com/gin-gonic/gin"
 )
 
 type NamespaceApi struct {
-	service       services.NamespaceService
-	moduleService services.ModuleService
+	helper ApiHelper
 }
 
-func NewNamespaceApi(svc services.NamespaceService, modSvc services.ModuleService) *NamespaceApi {
+func NewNamespaceApi(helper ApiHelper) *NamespaceApi {
 	newNsApi := &NamespaceApi{
-		service:       svc,
-		moduleService: modSvc,
+		helper: helper,
 	}
 	return newNsApi
 }
@@ -32,14 +30,15 @@ func (nsApi NamespaceApi) Router(g *gin.RouterGroup) *gin.RouterGroup {
 	return apiRouter
 }
 
+// GetNamespaces handles gin API request for listing namespaces
 func (nsApi NamespaceApi) GetNamespaces(c *gin.Context) {
-	nsList := nsApi.service.ListNamespaces()
+	nsList := nsApi.helper.NamespaceSvc.ListNamespaces()
 
-	response := NamespaceListResponse{
-		Namespaces: make([]NamespaceResponse, 0),
+	response := ResponseNamespaceList{
+		Namespaces: make([]ResponseNamespace, 0),
 	}
 	for _, ns := range *nsList {
-		nsr := NamespaceResponse{
+		nsr := ResponseNamespace{
 			Name:  ns.Name,
 			Owner: ns.Owner,
 		}
@@ -49,8 +48,9 @@ func (nsApi NamespaceApi) GetNamespaces(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, response)
 }
 
+// CreateNamespace handles gin POST request to create a new namespace
 func (nsApi NamespaceApi) CreateNamespace(c *gin.Context) {
-	var newNamespace NamespaceResponse
+	var newNamespace RequestNamespace
 
 	if err := c.BindJSON(&newNamespace); err != nil {
 		log.Errorf("create namespace failed: %v", err)
@@ -60,8 +60,12 @@ func (nsApi NamespaceApi) CreateNamespace(c *gin.Context) {
 		}
 		return
 	}
+	newNs := services.NewTerraformNamespace{
+		Name:  newNamespace.Name,
+		Owner: "Adam",
+	}
 
-	ns, err := nsApi.service.CreateNamespace(newNamespace.Name, newNamespace.Owner)
+	ns, err := nsApi.helper.NamespaceSvc.CreateNamespace(newNs)
 	if err != nil {
 		_ = c.AbortWithError(http.StatusConflict, err)
 		return
@@ -70,7 +74,7 @@ func (nsApi NamespaceApi) CreateNamespace(c *gin.Context) {
 }
 
 func (nsApi NamespaceApi) GetNamespaceByName(c *gin.Context) {
-	ns := nsApi.GetNamespaceFromRequest(c)
+	ns := nsApi.helper.GetNamespaceFromRequest(c)
 	if ns == nil {
 		return
 	}
@@ -79,44 +83,11 @@ func (nsApi NamespaceApi) GetNamespaceByName(c *gin.Context) {
 }
 
 func (nsApi NamespaceApi) DeleteNamespace(c *gin.Context) {
-	namespace := c.Param("namespace")
-
-	ns := nsApi.GetNamespaceFromRequest(c)
+	ns := nsApi.helper.GetNamespaceFromRequest(c)
 	if ns == nil {
 		return
 	}
-	hasChildren := nsApi.moduleService.HasChildren(*ns)
-	if hasChildren {
-		response := ErrorResponse{
-			Code:    http.StatusConflict,
-			Message: "namespace has child modules",
-		}
-		c.AbortWithStatusJSON(response.Code, response)
-		return
-	}
 
-	nsApi.service.DeleteNamespace(namespace)
-	c.Status(http.StatusAccepted)
-}
-
-func (nsApi NamespaceApi) GetNamespaceFromRequest(c *gin.Context) *services.Namespace {
-	namespaceName := c.Param("namespace")
-
-	exists := nsApi.service.Exists(namespaceName)
-
-	if !exists {
-		c.Status(http.StatusNotFound)
-		return nil
-	}
-	ns, err := nsApi.service.GetNamespaceByName(namespaceName)
-	if err != nil {
-		if err == services.ErrNamespaceNotFound {
-			c.AbortWithStatus(http.StatusNotFound)
-			return nil
-		}
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return nil
-	}
-
-	return ns
+	nsApi.helper.NamespaceSvc.DeleteNamespace(*ns)
+	c.Status(http.StatusOK)
 }

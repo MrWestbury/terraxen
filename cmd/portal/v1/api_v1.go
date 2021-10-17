@@ -1,4 +1,4 @@
-package main
+package v1
 
 import (
 	"github.com/MrWestbury/terraxen/services"
@@ -35,10 +35,12 @@ func (v1 V1) Router(g *gin.RouterGroup) {
 	sysSvc := services.NewSystemService(svcOpts)
 	verSvc := services.NewVersionService(svcOpts)
 
-	nsApi := NewNamespaceApi(*nsSvc, *modSvc)
-	modApi := NewModuleApi(*nsSvc, *modSvc)
-	sysApi := NewSystemApi(*nsSvc, *modSvc, *sysSvc)
-	verApi := NewVersionApi(*nsSvc, *modSvc, *sysSvc, *verSvc, *storageSvc)
+	helper := NewHelper(*nsSvc, *modSvc, *sysSvc, *verSvc)
+
+	nsApi := NewNamespaceApi(*helper)
+	modApi := NewModuleApi(*helper)
+	sysApi := NewSystemApi(*helper)
+	verApi := NewVersionApi(*helper, *storageSvc)
 
 	nsGroup := nsApi.Router(group)
 	modGroup := modApi.Router(nsGroup)

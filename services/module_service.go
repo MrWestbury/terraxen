@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
+	"fmt"
 	"log"
 	"time"
 
@@ -37,8 +37,9 @@ func NewModuleService(options Options) *ModuleService {
 }
 
 func (modSvc ModuleService) CreateModule(module NewTerraformModule) (*TerraformModule, error) {
+	newId := fmt.Sprintf("%s/%s", module.Namespace, module.Name)
 	newModule := TerraformModule{
-		Id:        uuid.NewString(),
+		Id:        newId,
 		Name:      module.Name,
 		Namespace: module.Namespace,
 		Created:   time.Now(),
@@ -85,6 +86,10 @@ func (modSvc ModuleService) ListModules(ns TerraformNamespace) *[]TerraformModul
 		log.Fatalf("failed decoding modules: %v", err)
 	}
 
+	if modules == nil {
+		modules = make([]TerraformModule, 0)
+	}
+
 	return &modules
 }
 
@@ -118,13 +123,13 @@ func (modSvc ModuleService) DeleteModule(module TerraformModule) {
 	defer modSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
-		"id": module.Id,
+		"_id": module.Id,
 	}
 
 	collection := client.Database(modSvc.Database).Collection(moduleCollectionName)
 	_, err := collection.DeleteOne(ctx, filter)
 	if err != nil {
-		log.Fatalf("failed deleting namespace: %v", err)
+		log.Fatalf("failed deleting module: %v", err)
 	}
 }
 
@@ -151,8 +156,7 @@ func (modSvc ModuleService) Exists(module TerraformModule) bool {
 	defer modSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
-		"name":      module.Name,
-		"namespace": module.Namespace,
+		"_id": module.Id,
 	}
 
 	collection := client.Database(modSvc.Database).Collection(moduleCollectionName)

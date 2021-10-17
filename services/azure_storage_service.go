@@ -35,7 +35,7 @@ func NewAzureStorageService(options AzureStorageOptions) *AzureStorageService {
 	return svc
 }
 
-func (ass AzureStorageService) DownloadModuleVersion(c *gin.Context, version ModuleVersion) {
+func (ass AzureStorageService) DownloadModuleVersion(c *gin.Context, version TerraformModuleVersion) {
 	// Create a default request pipeline using your storage account name and account key.
 	credential, err := azblob.NewSharedKeyCredential(ass.accountName, ass.accountKey)
 	if err != nil {
@@ -67,11 +67,12 @@ func (ass AzureStorageService) DownloadModuleVersion(c *gin.Context, version Mod
 	})
 }
 
-func (ass AzureStorageService) UploadModuleVersion(version ModuleVersion, stream io.ReadSeeker) ModuleVersion {
+func (ass AzureStorageService) UploadModuleVersion(path string, stream io.ReadSeeker) error {
 	// Create a request pipeline using your Storage account's name and account key.
 	credential, err := azblob.NewSharedKeyCredential(ass.accountName, ass.accountKey)
 	if err != nil {
 		log.Fatal(err)
+		return err
 	}
 	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 
@@ -83,9 +84,8 @@ func (ass AzureStorageService) UploadModuleVersion(version ModuleVersion, stream
 
 	ctx := context.Background() // This example uses a never-expiring context
 	// Here's how to create a blob with HTTP headers and metadata (I'm using the same metadata that was put on the container):
-	key := fmt.Sprintf("%s/%s/%s/%s.zip", version.Namespace, version.Module, version.System, version.Name)
-	version.DownloadKey = key
-	blobURL := containerURL.NewBlockBlobURL(key)
+
+	blobURL := containerURL.NewBlockBlobURL(path)
 
 	// Wrap the request body in a RequestBodyProgress and pass a callback function for progress reporting.
 	_, err = blobURL.Upload(ctx, stream, azblob.BlobHTTPHeaders{
@@ -95,7 +95,8 @@ func (ass AzureStorageService) UploadModuleVersion(version ModuleVersion, stream
 
 	if err != nil {
 		log.Fatalf("failed uploading file: %v", err)
+		return err
 	}
 
-	return version
+	return nil
 }

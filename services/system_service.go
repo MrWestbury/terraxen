@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/MrWestbury/terraxen/backend"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"
+	"time"
 )
 
 const (
@@ -17,12 +19,6 @@ var (
 	ErrSystemNotFound      = errors.New("system not found")
 	ErrSystemAlreadyExists = errors.New("system already exists")
 )
-
-type TerraformSystem struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	Module    string `json:"module"`
-}
 
 type SystemService struct {
 	backend.MongoBackend
@@ -38,23 +34,33 @@ func NewSystemService(opts Options) *SystemService {
 	return svc
 }
 
-func (sysSvc SystemService) CreateSystem(system TerraformSystem) (*TerraformSystem, error) {
+func (sysSvc SystemService) CreateSystem(systemInfo NewTerraformSystem) (*TerraformSystem, error) {
+	newId := fmt.Sprintf("%s/%s/%s", systemInfo.Module.Namespace, systemInfo.Module.Name, systemInfo.Name)
+	newSystem := TerraformSystem{
+		Id:        newId,
+		Name:      systemInfo.Name,
+		Namespace: systemInfo.Module.Namespace,
+		Module:    systemInfo.Module.Name,
+		Created:   time.Now(),
+		Updated:   time.Now(),
+	}
+
 	client := sysSvc.Connect()
 	ctx := context.Background()
 	defer sysSvc.HandleDisconnect(client, ctx)
 
-	exists := sysSvc.Exists(system)
+	exists := sysSvc.Exists(newSystem)
 	if exists {
 		return nil, ErrSystemAlreadyExists
 	}
 
 	collection := client.Database(sysSvc.Database).Collection(systemCollectionName)
-	_, err := collection.InsertOne(ctx, system)
+	_, err := collection.InsertOne(ctx, newSystem)
 	if err != nil {
 		return nil, err
 	}
 
-	return &system, nil
+	return &newSystem, nil
 }
 
 func (sysSvc SystemService) GetSystemByName(module TerraformModule, systemName string) (*TerraformSystem, error) {
@@ -94,15 +100,16 @@ func (sysSvc SystemService) ListSystemsByModule(module TerraformModule) *[]Terra
 	var systems []TerraformSystem
 	rs, err := collection.Find(ctx, filter)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil
-		}
 		log.Fatalf("unable to check namespace exists: %v", err)
 	}
 
 	err = rs.All(ctx, &systems)
 	if err != nil {
-		log.Fatalf("failed to bind versions objects: %v", err)
+		log.Fatalf("failed to bind systems objects: %v", err)
+	}
+
+	if systems == nil {
+		systems = make([]TerraformSystem, 0)
 	}
 
 	return &systems
@@ -125,7 +132,7 @@ func (sysSvc SystemService) ExistsByName(module TerraformModule, systemName stri
 		if err == mongo.ErrNoDocuments {
 			return false
 		}
-		log.Fatalf("unable to check namespace exists: %v", err)
+		log.Fatalf("unable to check system exists: %v", err)
 	}
 
 	return true
@@ -137,19 +144,35 @@ func (sysSvc SystemService) Exists(system TerraformSystem) bool {
 	defer sysSvc.HandleDisconnect(client, ctx)
 
 	filter := bson.M{
-		"name":      system.Name,
-		"namespace": system.Namespace,
-		"module":    system.Name,
+		"id": system.Id,
 	}
 
-	collection := client.Database(sysSvc.Database).Collection(moduleCollectionName)
+	collection := client.Database(sysSvc.Database).Collection(systemCollectionName)
 	err := collection.FindOne(ctx, filter).Err()
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return false
 		}
-		log.Fatalf("unable to check namespace exists: %v", err)
+		log.Fatalf("unable to check system exists: %v", err)
 	}
 
 	return true
+}
+
+func (sysSvc SystemService) Delete(system TerraformSystem) error {
+	client := sysSvc.Connect()
+	ctx := context.Background()
+	defer sysSvc.HandleDisconnect(client, ctx)
+
+	filter := bson.M{
+		"id": system.Id,
+	}
+
+	collection := client.Database(sysSvc.Database).Collection(systemCollectionName)
+	_, err := collection.DeleteOne(ctx, filter)
+	if err != nil {
+		log.Fatalf("failed deleting system: %v", err)
+		return err
+	}
+	return nil
 }
